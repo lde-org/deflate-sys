@@ -37,5 +37,6 @@ else
     exec('cp "' .. buildDir .. '/' .. libName .. '" "' .. outLib .. '"')
 
     local strip = (isAndroid and ndkRoot) and (ndkRoot .. "/toolchains/llvm/prebuilt/linux-aarch64/bin/llvm-strip") or "strip"
-    exec(strip .. ' "' .. outLib .. '"')
+    local stripFlags = isMac and "-x" or ""
+    exec(strip .. ' ' .. stripFlags .. ' "' .. outLib .. '"')
 end
