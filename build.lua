@@ -1,42 +1,28 @@
-local outDir = os.getenv("LDE_OUTPUT_DIR")
-local sep = string.sub(package.config, 1, 1)
-local isWindows = sep == "\\"
-local isMac = not isWindows and io.popen("uname"):read("*l") == "Darwin"
-local isAndroid = os.getenv("ANDROID_ROOT") ~= nil
-local scriptDir = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])")
-local src = scriptDir .. "vendor" .. sep .. "libdeflate"
-local buildDir = src .. sep .. "build"
-local libName = isWindows and "deflate.dll" or isMac and "libdeflate.dylib" or "libdeflate.so"
-local outLib = outDir .. sep .. libName
+local build = require("lde-build")
 
--- skip if already built
-if io.open(outLib, "rb") then return end
+local isWindows = jit.os == "Windows"
+local isMac = jit.os == "OSX"
+local libName = isWindows and "deflate.dll" or (isMac and "libdeflate.dylib" or "libdeflate.so")
 
-local function exec(cmd)
-    local ret = os.execute(cmd)
-    assert(ret == 0 or ret == true, "command failed: " .. cmd)
-end
+local url = "https://github.com/ebiggers/libdeflate/releases/download/v1.25/libdeflate-1.25.tar.gz"
+local tarball = "libdeflate-1.25.tar.gz"
+
+local content = build:fetch(url)
+build:write(tarball, content)
+build:extract(tarball, ".")
+build:move("libdeflate-1.25", "libdeflate")
+
+local srcDir = build.outDir .. "/libdeflate"
+local buildDir = srcDir .. "/build"
 
 if isWindows then
-    exec('cmake -S "' .. src .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON')
-    exec('cmake --build "' .. buildDir .. '" --config Release --parallel')
-    exec('copy "' .. buildDir .. '\\Release\\deflate.dll" "' .. outLib .. '"')
+	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON')
+	build:sh('cmake --build "' .. buildDir .. '" --config Release --parallel')
+	build:copy("libdeflate/build/Release/deflate.dll", libName)
 else
-    local ndkRoot = os.getenv("ANDROID_NDK_ROOT")
-    local cmakeExtra = ""
-
-    if isAndroid and ndkRoot then
-        local toolchain = ndkRoot .. "/toolchains/llvm/prebuilt/linux-aarch64"
-        cmakeExtra = ' -DCMAKE_TOOLCHAIN_FILE="' .. ndkRoot .. '/build/cmake/android.toolchain.cmake"' ..
-            ' -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24' ..
-            ' -DCMAKE_ANDROID_NDK="' .. ndkRoot .. '"'
-    end
-
-    exec('cmake -S "' .. src .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release' .. cmakeExtra)
-    exec('cmake --build "' .. buildDir .. '" --parallel')
-    exec('cp "' .. buildDir .. '/' .. libName .. '" "' .. outLib .. '"')
-
-    local strip = (isAndroid and ndkRoot) and (ndkRoot .. "/toolchains/llvm/prebuilt/linux-aarch64/bin/llvm-strip") or "strip"
-    local stripFlags = isMac and "-x" or ""
-    exec(strip .. ' ' .. stripFlags .. ' "' .. outLib .. '"')
+	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release')
+	build:sh('cmake --build "' .. buildDir .. '" --parallel')
+	build:copy("libdeflate/build/" .. libName, libName)
+	local stripFlags = isMac and "-x" or "--strip-unneeded --remove-section=.eh_frame --remove-section=.eh_frame_hdr"
+	build:sh('strip ' .. stripFlags .. ' "' .. build.outDir .. '/' .. libName .. '"')
 end
