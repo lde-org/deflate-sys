@@ -1,8 +1,14 @@
 local build = require("lde-build")
 
+local sep = string.sub(package.config, 1, 1)
 local isWindows = jit.os == "Windows"
 local isMac = jit.os == "OSX"
 local libName = isWindows and "deflate.dll" or (isMac and "libdeflate.dylib" or "libdeflate.so")
+local outLib = build.outDir .. sep .. libName
+
+-- Skip if already built. This is crucial so existing isn't overwritten and gets corrupted.
+-- This is seen with minilde.
+if io.open(outLib, "rb") then return end
 
 local url = "https://github.com/ebiggers/libdeflate/releases/download/v1.25/libdeflate-1.25.tar.gz"
 local tarball = "libdeflate-1.25.tar.gz"
@@ -23,6 +29,6 @@ else
 	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release')
 	build:sh('cmake --build "' .. buildDir .. '" --parallel')
 	build:copy("libdeflate/build/" .. libName, libName)
-	local stripFlags = isMac and "-x" or "--strip-unneeded --remove-section=.eh_frame --remove-section=.eh_frame_hdr"
+	local stripFlags = isMac and "-x" or "--strip-unneeded"
 	build:sh('strip ' .. stripFlags .. ' "' .. build.outDir .. '/' .. libName .. '"')
 end
