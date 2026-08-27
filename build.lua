@@ -18,7 +18,13 @@ local buildDir = srcDir .. "/build"
 if isWindows then
 	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON')
 	build:sh('cmake --build "' .. buildDir .. '" --config Release --parallel')
-	build:copy("libdeflate/build/Release/deflate.dll", libName)
+	-- libdeflate's cmake target names the shared library libdeflate.dll.
+	-- Multi-config generators (Ninja Multi-Config, Visual Studio) emit it under
+	-- build/Release/; single-config ones (MinGW Makefiles) under build/.
+	local dll = build:exists("libdeflate/build/Release/libdeflate.dll")
+		and "libdeflate/build/Release/libdeflate.dll"
+		or "libdeflate/build/libdeflate.dll"
+	build:copy(dll, libName)
 else
 	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release')
 	build:sh('cmake --build "' .. buildDir .. '" --parallel')
