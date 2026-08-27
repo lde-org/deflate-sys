@@ -15,9 +15,10 @@ build:move("libdeflate-1.25", "libdeflate")
 local srcDir = build.outDir .. "/libdeflate"
 local buildDir = srcDir .. "/build"
 
+build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON')
+build:sh('cmake --build "' .. buildDir .. '" --parallel')
+
 if isWindows then
-	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON')
-	build:sh('cmake --build "' .. buildDir .. '" --config Release --parallel')
 	-- libdeflate's cmake target names the shared library libdeflate.dll.
 	-- Multi-config generators (Ninja Multi-Config, Visual Studio) emit it under
 	-- build/Release/; single-config ones (MinGW Makefiles) under build/.
@@ -26,8 +27,6 @@ if isWindows then
 		or "libdeflate/build/libdeflate.dll"
 	build:copy(dll, libName)
 else
-	build:sh('cmake -S "' .. srcDir .. '" -B "' .. buildDir .. '" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release')
-	build:sh('cmake --build "' .. buildDir .. '" --parallel')
 	build:copy("libdeflate/build/" .. libName, libName)
 	local stripFlags = isMac and "-x" or "--strip-unneeded"
 	build:sh('strip ' .. stripFlags .. ' "' .. build.outDir .. '/' .. libName .. '"')
